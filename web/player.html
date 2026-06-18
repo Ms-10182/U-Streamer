@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="HLS adaptive bitrate video player with quality switching">
+    <title>StreamForge — Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+    <style>
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: rgba(22, 22, 35, 0.7);
+            --border: rgba(255, 255, 255, 0.06);
+            --border-hover: rgba(255, 255, 255, 0.12);
+            --text-primary: #f0f0f5;
+            --text-secondary: #8888a0;
+            --text-muted: #55556a;
+            --accent: #6c5ce7;
+            --accent-light: #a29bfe;
+            --accent-glow: rgba(108, 92, 231, 0.3);
+            --success: #00cec9;
+            --warning: #fdcb6e;
+            --danger: #e17055;
+            --gradient-1: linear-gradient(135deg, #6c5ce7, #a29bfe);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        header {
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            background: rgba(10, 10, 15, 0.8);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: var(--gradient-1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        .logo-text {
+            font-size: 1.2rem;
+            font-weight: 700;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.45rem 1rem;
+            border-radius: 10px;
+            border: 1px solid var(--border-hover);
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-decoration: none;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .back-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent-light);
+            background: rgba(108, 92, 231, 0.1);
+        }
+
+        /* Player Layout */
+        .player-container {
+            max-width: 1100px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #000;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            aspect-ratio: 16 / 9;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #000;
+        }
+
+        /* Info Panel */
+        .info-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.2rem;
+            margin-top: 1.5rem;
+        }
+
+        @media (max-width: 640px) {
+            .info-panel { grid-template-columns: 1fr; }
+            .player-container { padding: 0 1rem; margin: 1rem auto; }
+        }
+
+        .info-card {
+            padding: 1.2rem;
+            border-radius: 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(10px);
+        }
+
+        .info-card-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 0.8rem;
+        }
+
+        /* Stream Stats */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.8rem;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stat-value.quality {
+            color: var(--success);
+        }
+
+        .stat-value.bandwidth {
+            color: var(--accent-light);
+        }
+
+        .stat-value.buffer {
+            color: var(--warning);
+        }
+
+        .stat-value.segments {
+            color: var(--text-primary);
+        }
+
+        /* Quality Selector */
+        .quality-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .quality-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.6rem 0.8rem;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            width: 100%;
+        }
+
+        .quality-option:hover {
+            border-color: var(--border-hover);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .quality-option.active {
+            border-color: var(--accent);
+            background: rgba(108, 92, 231, 0.1);
+        }
+
+        .quality-option-left {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .quality-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            transition: all 0.3s ease;
+        }
+
+        .quality-option.active .quality-dot {
+            background: var(--accent-light);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .quality-resolution {
+            font-weight: 600;
+        }
+
+        .quality-bitrate {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Loading state */
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(10, 10, 15, 0.9);
+            z-index: 10;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--accent-light);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        /* Error state */
+        .error-overlay {
+            position: absolute;
+            inset: 0;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(10, 10, 15, 0.95);
+            z-index: 10;
+        }
+
+        .error-overlay.visible {
+            display: flex;
+        }
+
+        .error-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .error-text {
+            font-size: 0.9rem;
+            color: var(--danger);
+            text-align: center;
+            max-width: 80%;
+        }
+
+        /* ABR indicator */
+        .abr-indicator {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            padding: 0.3rem 0.6rem;
+            border-radius: 8px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            color: var(--success);
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .video-wrapper:hover .abr-indicator {
+            opacity: 1;
+        }
+
+        .abr-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="/" class="logo">
+            <div class="logo-icon">🎬</div>
+            <span class="logo-text">StreamForge</span>
+        </a>
+        <a href="/" class="back-btn">← Back to Library</a>
+    </header>
+
+    <div class="player-container">
+        <div class="video-wrapper" id="videoWrapper">
+            <video id="video" controls playsinline></video>
+
+            <div class="abr-indicator" id="abrIndicator">
+                <span class="abr-dot"></span>
+                <span id="abrLabel">AUTO</span>
+            </div>
+
+            <div class="loading-overlay" id="loadingOverlay">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">Loading stream...</div>
+            </div>
+
+            <div class="error-overlay" id="errorOverlay">
+                <div class="error-icon">⚠️</div>
+                <div class="error-text" id="errorText">Failed to load video</div>
+            </div>
+        </div>
+
+        <div class="info-panel">
+            <div class="info-card">
+                <div class="info-card-title">Stream Statistics</div>
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Current Quality</span>
+                        <span class="stat-value quality" id="statQuality">—</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Bandwidth</span>
+                        <span class="stat-value bandwidth" id="statBandwidth">—</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Buffer</span>
+                        <span class="stat-value buffer" id="statBuffer">—</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Loaded Segments</span>
+                        <span class="stat-value segments" id="statSegments">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <div class="info-card-title">Quality Levels</div>
+                <div class="quality-list" id="qualityList">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Helper functions (defined first so they can be called from anywhere)
+        function formatBitrate(bps) {
+            if (bps >= 1000000) {
+                return (bps / 1000000).toFixed(1) + ' Mbps';
+            }
+            return (bps / 1000).toFixed(0) + ' Kbps';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+
+        function showError(msg) {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            document.getElementById('errorText').textContent = msg;
+            document.getElementById('errorOverlay').classList.add('visible');
+        }
+
+        function buildQualitySelector(hls, levels) {
+            const list = document.getElementById('qualityList');
+
+            let html = `
+                <button class="quality-option active" data-level="-1" onclick="setQuality(this, -1)">
+                    <div class="quality-option-left">
+                        <span class="quality-dot"></span>
+                        <span class="quality-resolution">Auto</span>
+                    </div>
+                    <span class="quality-bitrate">Adaptive</span>
+                </button>
+            `;
+
+            const sortedLevels = levels.map((l, i) => ({ ...l, index: i }))
+                .sort((a, b) => b.height - a.height);
+
+            for (const level of sortedLevels) {
+                const bitrate = formatBitrate(level.bitrate);
+                html += `
+                    <button class="quality-option" data-level="${level.index}" onclick="setQuality(this, ${level.index})">
+                        <div class="quality-option-left">
+                            <span class="quality-dot"></span>
+                            <span class="quality-resolution">${level.height}p</span>
+                        </div>
+                        <span class="quality-bitrate">${bitrate}</span>
+                    </button>
+                `;
+            }
+
+            list.innerHTML = html;
+        }
+
+        function setQuality(el, levelIndex) {
+            if (window._hls) {
+                if (levelIndex === -1) {
+                    window._hls.currentLevel = -1;
+                    document.getElementById('abrLabel').textContent = 'AUTO';
+                } else {
+                    window._hls.currentLevel = levelIndex;
+                    const level = window._hls.levels[levelIndex];
+                    document.getElementById('abrLabel').textContent = level.height + 'p';
+                }
+            }
+
+            document.querySelectorAll('.quality-option').forEach(opt => opt.classList.remove('active'));
+            el.classList.add('active');
+        }
+
+        function updateCurrentQuality(hls, levelIndex) {
+            const level = hls.levels[levelIndex];
+            if (level) {
+                document.getElementById('statQuality').textContent = `${level.height}p`;
+            }
+        }
+
+        function updateStats(hls, video) {
+            if (hls.bandwidthEstimate) {
+                document.getElementById('statBandwidth').textContent =
+                    formatBitrate(hls.bandwidthEstimate);
+            }
+
+            if (video.buffered.length > 0) {
+                const bufferEnd = video.buffered.end(video.buffered.length - 1);
+                const bufferLen = (bufferEnd - video.currentTime).toFixed(1);
+                document.getElementById('statBuffer').textContent = bufferLen + 's';
+            }
+
+            if (hls.currentLevel >= 0) {
+                const level = hls.levels[hls.currentLevel];
+                if (level) {
+                    document.getElementById('statQuality').textContent = `${level.height}p`;
+                }
+            }
+        }
+
+        // Main init
+        function initPlayer(id) {
+            const video = document.getElementById('video');
+            const src = `/api/stream/${id}/master.m3u8`;
+            let segmentCount = 0;
+
+            if (Hls.isSupported()) {
+                const hls = new Hls({
+                    debug: false,
+                    enableWorker: true,
+                    lowLatencyMode: false,
+                    backBufferLength: 90,
+                    maxBufferLength: 30,
+                    maxMaxBufferLength: 600,
+                    startLevel: -1,
+                    abrEwmaDefaultEstimate: 500000,
+                });
+
+                window._hls = hls;
+
+                hls.loadSource(src);
+                hls.attachMedia(video);
+
+                hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+                    hideLoading();
+                    buildQualitySelector(hls, data.levels);
+                    video.play().catch(() => {});
+                });
+
+                hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+                    updateCurrentQuality(hls, data.level);
+                });
+
+                hls.on(Hls.Events.FRAG_LOADED, () => {
+                    segmentCount++;
+                    document.getElementById('statSegments').textContent = segmentCount;
+                });
+
+                hls.on(Hls.Events.ERROR, (event, data) => {
+                    console.error('HLS error:', data);
+                    if (data.fatal) {
+                        switch (data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                hls.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                showError('Fatal playback error. The video may still be processing.');
+                                hls.destroy();
+                                break;
+                        }
+                    }
+                });
+
+                setInterval(() => updateStats(hls, video), 500);
+
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = src;
+                video.addEventListener('loadedmetadata', () => {
+                    hideLoading();
+                    video.play().catch(() => {});
+                });
+                video.addEventListener('error', () => {
+                    showError('Failed to load video. It may still be processing.');
+                });
+            } else {
+                showError('Your browser does not support HLS playback.');
+            }
+        }
+
+        // Bootstrap
+        const params = new URLSearchParams(window.location.search);
+        const videoId = params.get('id');
+
+        if (!videoId) {
+            showError('No video ID specified. Go back and select a video.');
+        } else {
+            initPlayer(videoId);
+        }
+    </script>
+</body>
+</html>

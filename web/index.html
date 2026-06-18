@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Upload and stream videos with adaptive bitrate HLS streaming">
+    <title>StreamForge — Adaptive Video Streaming</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: rgba(22, 22, 35, 0.7);
+            --bg-card-hover: rgba(30, 30, 50, 0.8);
+            --border: rgba(255, 255, 255, 0.06);
+            --border-hover: rgba(255, 255, 255, 0.12);
+            --text-primary: #f0f0f5;
+            --text-secondary: #8888a0;
+            --text-muted: #55556a;
+            --accent: #6c5ce7;
+            --accent-light: #a29bfe;
+            --accent-glow: rgba(108, 92, 231, 0.3);
+            --success: #00cec9;
+            --success-glow: rgba(0, 206, 201, 0.2);
+            --warning: #fdcb6e;
+            --danger: #e17055;
+            --gradient-1: linear-gradient(135deg, #6c5ce7, #a29bfe);
+            --gradient-2: linear-gradient(135deg, #00cec9, #55efc4);
+            --gradient-3: linear-gradient(135deg, #fd79a8, #e84393);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(ellipse at 20% 50%, rgba(108, 92, 231, 0.08) 0%, transparent 50%),
+                        radial-gradient(ellipse at 80% 20%, rgba(0, 206, 201, 0.06) 0%, transparent 50%),
+                        radial-gradient(ellipse at 50% 80%, rgba(253, 121, 168, 0.05) 0%, transparent 50%);
+            animation: bgShift 20s ease-in-out infinite alternate;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        @keyframes bgShift {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            100% { transform: translate(-5%, -3%) rotate(3deg); }
+        }
+
+        /* Header */
+        header {
+            position: relative;
+            z-index: 10;
+            padding: 1.5rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            background: rgba(10, 10, 15, 0.6);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: var(--gradient-1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        .logo-text {
+            font-size: 1.4rem;
+            font-weight: 700;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+        }
+
+        .header-badge {
+            padding: 0.35rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            background: rgba(0, 206, 201, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(0, 206, 201, 0.2);
+        }
+
+        /* Main */
+        main {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2.5rem 2rem;
+        }
+
+        /* Upload Section */
+        .upload-section {
+            margin-bottom: 3rem;
+        }
+
+        .section-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 0.4rem;
+            letter-spacing: -0.5px;
+        }
+
+        .section-subtitle {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+        }
+
+        /* Drop Zone */
+        .drop-zone {
+            position: relative;
+            border: 2px dashed var(--border-hover);
+            border-radius: 20px;
+            padding: 3.5rem 2rem;
+            text-align: center;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+
+        .drop-zone::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 20px;
+            background: var(--gradient-1);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            z-index: 0;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.drag-over {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 40px var(--accent-glow);
+        }
+
+        .drop-zone:hover::before,
+        .drop-zone.drag-over::before {
+            opacity: 0.05;
+        }
+
+        .drop-zone > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .drop-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            display: block;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .drop-text {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .drop-hint {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .drop-hint span {
+            color: var(--accent-light);
+            font-weight: 500;
+            text-decoration: underline;
+            text-decoration-style: dashed;
+            text-underline-offset: 3px;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        /* Upload Progress */
+        .upload-progress {
+            display: none;
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            border-radius: 16px;
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+        }
+
+        .upload-progress.active {
+            display: block;
+            animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.8rem;
+        }
+
+        .progress-filename {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 70%;
+        }
+
+        .progress-percent {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--accent-light);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .progress-bar-track {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.05);
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            background: var(--gradient-1);
+            width: 0%;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+
+        .progress-bar-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .progress-status {
+            margin-top: 0.6rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .progress-status.success {
+            color: var(--success);
+        }
+
+        .progress-status.error {
+            color: var(--danger);
+        }
+
+        /* Video Library */
+        .library-section {
+            margin-top: 1rem;
+        }
+
+        .library-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .refresh-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-hover);
+            border-radius: 10px;
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .refresh-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent-light);
+            background: rgba(108, 92, 231, 0.1);
+        }
+
+        .refresh-btn .icon {
+            transition: transform 0.4s ease;
+        }
+
+        .refresh-btn:hover .icon {
+            transform: rotate(180deg);
+        }
+
+        /* Video Grid */
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.2rem;
+        }
+
+        .video-card {
+            border-radius: 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+        }
+
+        .video-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .video-card.ready:hover {
+            border-color: var(--accent);
+            box-shadow: 0 12px 40px var(--accent-glow);
+            cursor: pointer;
+        }
+
+        .video-card-preview {
+            height: 160px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .video-card.ready .video-card-preview {
+            background: linear-gradient(135deg, rgba(108, 92, 231, 0.15), rgba(0, 206, 201, 0.1));
+        }
+
+        .video-card.processing .video-card-preview {
+            background: linear-gradient(135deg, rgba(253, 203, 110, 0.1), rgba(225, 112, 85, 0.08));
+        }
+
+        .preview-icon {
+            font-size: 2.5rem;
+            opacity: 0.6;
+        }
+
+        .play-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .video-card.ready:hover .play-overlay {
+            opacity: 1;
+        }
+
+        .play-btn {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--gradient-1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            box-shadow: 0 4px 24px var(--accent-glow);
+            transform: scale(0.8);
+            transition: transform 0.3s ease;
+        }
+
+        .video-card.ready:hover .play-btn {
+            transform: scale(1);
+        }
+
+        .video-card-body {
+            padding: 1.2rem;
+        }
+
+        .video-id {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            margin-bottom: 0.6rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .video-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.3rem 0.7rem;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .video-status.ready {
+            background: var(--success-glow);
+            color: var(--success);
+        }
+
+        .video-status.processing {
+            background: rgba(253, 203, 110, 0.1);
+            color: var(--warning);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-dot.ready {
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        .status-dot.processing {
+            background: var(--warning);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 4px var(--warning); }
+            50% { opacity: 0.4; box-shadow: 0 0 12px var(--warning); }
+        }
+
+        .video-renditions {
+            margin-top: 0.6rem;
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+        }
+
+        .rendition-badge {
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            background: rgba(108, 92, 231, 0.12);
+            color: var(--accent-light);
+            border: 1px solid rgba(108, 92, 231, 0.2);
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-muted);
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.4;
+        }
+
+        .empty-text {
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 0.4rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-hint {
+            font-size: 0.8rem;
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .toast {
+            padding: 0.8rem 1.2rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            animation: toastIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            max-width: 350px;
+        }
+
+        .toast.success {
+            background: rgba(0, 206, 201, 0.15);
+            color: var(--success);
+            border-color: rgba(0, 206, 201, 0.3);
+        }
+
+        .toast.error {
+            background: rgba(225, 112, 85, 0.15);
+            color: var(--danger);
+            border-color: rgba(225, 112, 85, 0.3);
+        }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            main { padding: 1.5rem 1rem; }
+            .section-title { font-size: 1.3rem; }
+            .video-grid { grid-template-columns: 1fr; }
+            .drop-zone { padding: 2.5rem 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <div class="logo-icon">🎬</div>
+            <span class="logo-text">StreamForge</span>
+        </div>
+        <div class="header-badge">HLS Adaptive Streaming</div>
+    </header>
+
+    <main>
+        <section class="upload-section" id="upload-section">
+            <h1 class="section-title">Upload Video</h1>
+            <p class="section-subtitle">Drop a video file to transcode into multi-resolution HLS streams</p>
+
+            <div class="drop-zone" id="dropZone">
+                <span class="drop-icon">📤</span>
+                <p class="drop-text">Drag & drop your video here</p>
+                <p class="drop-hint">or <span>browse files</span> — MP4, MKV, AVI, MOV up to 2GB</p>
+                <input type="file" id="fileInput" accept="video/*">
+            </div>
+
+            <div class="upload-progress" id="uploadProgress">
+                <div class="progress-header">
+                    <span class="progress-filename" id="progressFilename"></span>
+                    <span class="progress-percent" id="progressPercent">0%</span>
+                </div>
+                <div class="progress-bar-track">
+                    <div class="progress-bar-fill" id="progressBar"></div>
+                </div>
+                <div class="progress-status" id="progressStatus">Uploading...</div>
+            </div>
+        </section>
+
+        <section class="library-section">
+            <div class="library-header">
+                <div>
+                    <h2 class="section-title">Video Library</h2>
+                    <p class="section-subtitle">Your transcoded videos with adaptive bitrate streams</p>
+                </div>
+                <button class="refresh-btn" id="refreshBtn" onclick="loadVideos()">
+                    <span class="icon">⟳</span> Refresh
+                </button>
+            </div>
+
+            <div class="video-grid" id="videoGrid">
+                <!-- Videos loaded dynamically -->
+            </div>
+        </section>
+    </main>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        const API = '';
+        let pollInterval = null;
+
+        // ── Drop Zone ──
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) uploadFile(files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) uploadFile(e.target.files[0]);
+        });
+
+        // ── Upload ──
+        async function uploadFile(file) {
+            const progress = document.getElementById('uploadProgress');
+            const bar = document.getElementById('progressBar');
+            const percent = document.getElementById('progressPercent');
+            const filename = document.getElementById('progressFilename');
+            const status = document.getElementById('progressStatus');
+
+            progress.classList.add('active');
+            filename.textContent = file.name;
+            status.textContent = 'Uploading...';
+            status.className = 'progress-status';
+
+            const formData = new FormData();
+            formData.append('video', file);
+
+            const xhr = new XMLHttpRequest();
+
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const pct = Math.round((e.loaded / e.total) * 100);
+                    bar.style.width = pct + '%';
+                    percent.textContent = pct + '%';
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                if (xhr.status === 200) {
+                    const data = JSON.parse(xhr.responseText);
+                    bar.style.width = '100%';
+                    percent.textContent = '100%';
+                    status.textContent = `✅ Uploaded! Video ID: ${data.id} — Queued for processing`;
+                    status.className = 'progress-status success';
+                    showToast('Video uploaded successfully! Processing will begin shortly.', 'success');
+                    startPolling();
+                    loadVideos();
+                } else {
+                    let msg = 'Upload failed';
+                    try { msg = JSON.parse(xhr.responseText).error; } catch(e) {}
+                    status.textContent = `❌ ${msg}`;
+                    status.className = 'progress-status error';
+                    showToast(msg, 'error');
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                status.textContent = '❌ Network error';
+                status.className = 'progress-status error';
+                showToast('Network error during upload', 'error');
+            });
+
+            xhr.open('POST', `${API}/api/upload`);
+            xhr.send(formData);
+        }
+
+        // ── Video Library ──
+        async function loadVideos() {
+            try {
+                const res = await fetch(`${API}/api/videos`);
+                const videos = await res.json();
+                renderVideos(videos);
+
+                // Auto-poll if any video is processing
+                const hasProcessing = videos.some(v => v.status === 'processing');
+                if (hasProcessing) {
+                    startPolling();
+                } else {
+                    stopPolling();
+                }
+            } catch (err) {
+                console.error('Failed to load videos:', err);
+            }
+        }
+
+        function renderVideos(videos) {
+            const grid = document.getElementById('videoGrid');
+
+            if (!videos || videos.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state" style="grid-column: 1/-1">
+                        <div class="empty-icon">🎞️</div>
+                        <p class="empty-text">No videos yet</p>
+                        <p class="empty-hint">Upload a video above to get started</p>
+                    </div>`;
+                return;
+            }
+
+            grid.innerHTML = videos.map(video => `
+                <div class="video-card ${video.status}"
+                     ${video.status === 'ready' ? `onclick="window.location.href='/player?id=${video.id}'"` : ''}>
+                    <div class="video-card-preview">
+                        <span class="preview-icon">${video.status === 'ready' ? '🎬' : '⚙️'}</span>
+                        ${video.status === 'ready' ? `
+                            <div class="play-overlay">
+                                <div class="play-btn">▶</div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="video-card-body">
+                        <div class="video-id" title="${video.id}">${video.id}</div>
+                        <div class="video-status ${video.status}">
+                            <span class="status-dot ${video.status}"></span>
+                            ${video.status === 'ready' ? 'Ready to stream' : 'Processing...'}
+                        </div>
+                        ${video.renditions ? `
+                            <div class="video-renditions">
+                                ${video.renditions.map(r => `<span class="rendition-badge">${r}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function startPolling() {
+            if (pollInterval) return;
+            pollInterval = setInterval(loadVideos, 3000);
+        }
+
+        function stopPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+
+        // ── Toast ──
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(20px)';
+                toast.style.transition = 'all 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // Initial load
+        loadVideos();
+    </script>
+</body>
+</html>
